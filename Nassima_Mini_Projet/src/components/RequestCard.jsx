@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import Avatar from './Avatar'
 
 export default function RequestCard({ request, rightSlot }) {
   const fullName = `${request?.prenom || ''} ${request?.nom || ''}`.trim()
@@ -14,13 +15,7 @@ export default function RequestCard({ request, rightSlot }) {
     >
       <div className="d-flex align-items-start justify-content-between gap-3">
         <div className="d-flex gap-3">
-          <img
-            src={request?.avatar || 'https://via.placeholder.com/48'}
-            alt="avatar"
-            className="rounded-circle border"
-            width="48"
-            height="48"
-          />
+          <Avatar name={fullName} avatarUrl={request?.avatar} size="md" />
           <div>
             <div className="d-flex align-items-center gap-2 flex-wrap">
               <div className="fw-semibold">{fullName || 'User'}</div>

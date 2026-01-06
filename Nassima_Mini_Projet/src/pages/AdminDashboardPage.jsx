@@ -14,6 +14,7 @@ import {
   setDateRange,
   setStatusFilter,
 } from '../redux/dashboardSlice'
+import { fetchRequests, selectRequests } from '../redux/requestsSlice'
 import { fetchUsers } from '../redux/usersSlice'
 import { selectUsers } from '../redux/usersSlice'
 
@@ -74,12 +75,16 @@ export default function AdminDashboardPage() {
   const topActive = useSelector(selectTopActiveUsers)
   const recent = useSelector(selectRecentActivities)
   const users = useSelector(selectUsers)
+  const requests = useSelector(selectRequests)
 
   useEffect(() => {
     if (!Array.isArray(users) || users.length === 0) {
       dispatch(fetchUsers())
     }
-  }, [dispatch, users])
+    if (!Array.isArray(requests) || requests.length === 0) {
+      dispatch(fetchRequests())
+    }
+  }, [dispatch, users, requests])
 
   const recentTop = useMemo(() => recent.slice(0, 10), [recent])
 

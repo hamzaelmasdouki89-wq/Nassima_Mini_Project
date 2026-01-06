@@ -1,11 +1,14 @@
 import { useSelector } from 'react-redux'
 import { motion } from 'framer-motion'
 
+import Avatar from '../components/Avatar'
 import { selectUser } from '../redux/authSlice'
 
 export default function ProfilePage() {
   const user = useSelector(selectUser)
 
+  const fullName = `${user?.prenom || ''} ${user?.nom || ''}`.trim()
+  
   return (
     <div className="container py-4">
       <motion.div
@@ -16,13 +19,7 @@ export default function ProfilePage() {
       >
         <div className="d-flex align-items-start justify-content-between gap-3">
           <div className="d-flex align-items-center gap-3">
-            <img
-              src={user?.avatar || user?.photo || 'https://via.placeholder.com/72'}
-              alt="avatar"
-              className="rounded-circle border"
-              width="72"
-              height="72"
-            />
+            <Avatar name={fullName} avatarUrl={user?.avatar || user?.photo} size="lg" />
             <div>
               <h1 className="h4 mb-1">
                 {user?.prenom} {user?.nom}

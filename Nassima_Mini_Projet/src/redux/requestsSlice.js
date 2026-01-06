@@ -1,6 +1,5 @@
-import { createSelector, createSlice, nanoid } from '@reduxjs/toolkit'
-
-const STORAGE_KEY = 'px_requests_v1'
+import { createAsyncThunk, createSelector, createSlice, nanoid } from '@reduxjs/toolkit'
+import { createDemande, deleteDemande, fetchDemandes, updateDemande } from '../services/api'
 
 const normalizeStatus = (value) => {
   const s = String(value || '').toUpperCase()
@@ -35,76 +34,130 @@ const normalizeRequest = (r) => {
   }
 }
 
-const loadRequests = () => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed.map(normalizeRequest) : []
-  } catch (e) {
-    return []
-  }
+const getErrorMessage = (err) => {
+  const apiMsg = err?.response?.data?.message
+  if (apiMsg) return String(apiMsg)
+  const msg = err?.message
+  return msg ? String(msg) : 'Something went wrong. Please try again.'
 }
 
-export const saveRequests = (requests) => {
+export const fetchRequests = createAsyncThunk('requests/fetchRequests', async (_, { rejectWithValue }) => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(requests))
-  } catch (e) {
-    // ignore
+    const args = _ || {}
+
+    const page = Number(args?.page || 0)
+    const limit = Number(args?.limit || 0)
+    const statusRaw = String(args?.status || '').toUpperCase()
+
+    const isPaginated = page > 0 && limit > 0
+    const status = statusRaw === 'PENDING' || statusRaw === 'APPROVED' || statusRaw === 'REJECTED' || statusRaw === 'ALL' ? statusRaw : ''
+
+    const params = {}
+    if (page > 0) params.page = page
+    if (limit > 0) params.limit = limit
+    if (status && status !== 'ALL') params.status = status
+
+    const res = await fetchDemandes(params)
+    const list = Array.isArray(res?.data) ? res.data : []
+    const items = list.map(normalizeRequest)
+
+    const totalCountRaw = res?.headers?.['x-total-count']
+    const totalCount = Number(totalCountRaw)
+
+    if (!isPaginated) {
+      return {
+        items,
+        totalCount: Number.isFinite(totalCount) ? totalCount : items.length,
+      }
+    }
+
+    const totalPages = Number.isFinite(totalCount) ? Math.max(1, Math.ceil(totalCount / limit)) : 1
+
+    return {
+      items,
+      currentPage: page,
+      totalPages,
+      limit,
+      filter: status || 'ALL',
+      totalCount: Number.isFinite(totalCount) ? totalCount : null,
+    }
+  } catch (err) {
+    return rejectWithValue(getErrorMessage(err))
   }
-}
+})
+
+export const addRequest = createAsyncThunk('requests/addRequest', async (payload, { rejectWithValue }) => {
+  try {
+    const now = new Date().toISOString()
+    const body = {
+      userId: String(payload?.userId || ''),
+      nom: String(payload?.nom || ''),
+      prenom: String(payload?.prenom || ''),
+      pseudo: String(payload?.pseudo || ''),
+      avatar: String(payload?.avatar || ''),
+      title: String(payload?.title || ''),
+      description: String(payload?.description || ''),
+      status: 'PENDING',
+      createdAt: now,
+      approvedAt: null,
+    }
+    const res = await createDemande(body)
+    return normalizeRequest(res?.data)
+  } catch (err) {
+    return rejectWithValue(getErrorMessage(err))
+  }
+})
+
+export const cancelPendingRequest = createAsyncThunk(
+  'requests/cancelPendingRequest',
+  async (id, { getState, rejectWithValue }) => {
+    try {
+      const items = getState()?.requests?.items || []
+      const found = items.find((r) => String(r?.id) === String(id))
+      if (String(found?.id || '').startsWith('tmp-')) return { id: String(id), localOnly: true }
+
+      await deleteDemande(id)
+      return { id: String(id) }
+    } catch (err) {
+      return rejectWithValue(getErrorMessage(err))
+    }
+  },
+)
+
+export const approveRequest = createAsyncThunk('requests/approveRequest', async (id, { rejectWithValue }) => {
+  try {
+    const now = new Date().toISOString()
+    const res = await updateDemande(id, { status: 'APPROVED', approvedAt: now })
+    return normalizeRequest(res?.data)
+  } catch (err) {
+    return rejectWithValue(getErrorMessage(err))
+  }
+})
+
+export const rejectRequest = createAsyncThunk('requests/rejectRequest', async (id, { rejectWithValue }) => {
+  try {
+    const res = await updateDemande(id, { status: 'REJECTED', approvedAt: null })
+    return normalizeRequest(res?.data)
+  } catch (err) {
+    return rejectWithValue(getErrorMessage(err))
+  }
+})
 
 const initialState = {
-  items: loadRequests(),
+  items: [],
+  currentPage: 1,
+  totalPages: 1,
+  limit: 10,
+  filter: 'PENDING',
+  totalCount: null,
+  loading: 'idle',
+  error: null,
 }
 
 const requestsSlice = createSlice({
   name: 'requests',
   initialState,
   reducers: {
-    addRequest: {
-      reducer: (state, action) => {
-        state.items.unshift(action.payload)
-      },
-      prepare: ({ title, description, userId, nom, prenom, pseudo, avatar }) => {
-        const now = new Date().toISOString()
-        return {
-          payload: {
-            id: nanoid(),
-            userId,
-            nom,
-            prenom,
-            pseudo,
-            avatar,
-            title,
-            description,
-            status: 'PENDING',
-            createdAt: now,
-            approvedAt: null,
-          },
-        }
-      },
-    },
-    cancelPendingRequest: (state, action) => {
-      const id = action.payload
-      state.items = state.items.filter((r) => !(r.id === id && r.status === 'PENDING'))
-    },
-    approveRequest: (state, action) => {
-      const id = action.payload
-      const found = state.items.find((r) => r.id === id)
-      if (!found) return
-
-      found.status = 'APPROVED'
-      found.approvedAt = new Date().toISOString()
-    },
-    rejectRequest: (state, action) => {
-      const id = action.payload
-      const found = state.items.find((r) => r.id === id)
-      if (!found) return
-
-      found.status = 'REJECTED'
-      found.approvedAt = null
-    },
     updateRequestContent: (state, action) => {
       const { id, title, description } = action.payload
       const found = state.items.find((r) => r.id === id)
@@ -116,19 +169,135 @@ const requestsSlice = createSlice({
     clearAllRequests: (state) => {
       state.items = []
     },
+    setRequestsPage: (state, action) => {
+      const n = Number(action.payload)
+      state.currentPage = Number.isFinite(n) && n > 0 ? n : 1
+    },
+    setRequestsLimit: (state, action) => {
+      const n = Number(action.payload)
+      state.limit = n === 5 ? 5 : 10
+      state.currentPage = 1
+    },
+    setRequestsFilter: (state, action) => {
+      const next = String(action.payload || '').toUpperCase()
+      state.filter = next === 'PENDING' || next === 'APPROVED' || next === 'REJECTED' || next === 'ALL' ? next : 'ALL'
+      state.currentPage = 1
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchRequests.pending, (state) => {
+        state.loading = 'pending'
+        state.error = null
+      })
+      .addCase(fetchRequests.fulfilled, (state, action) => {
+        state.loading = 'succeeded'
+        state.items = Array.isArray(action.payload?.items) ? action.payload.items : []
+
+        if (action.payload?.currentPage) state.currentPage = Number(action.payload.currentPage)
+        if (action.payload?.totalPages) state.totalPages = Number(action.payload.totalPages)
+        if (action.payload?.limit) state.limit = Number(action.payload.limit)
+        if (action.payload?.filter) state.filter = String(action.payload.filter)
+        if (action.payload?.totalCount !== undefined) state.totalCount = action.payload.totalCount
+      })
+      .addCase(fetchRequests.rejected, (state, action) => {
+        state.loading = 'failed'
+        state.error = String(action.payload || action.error?.message || 'Failed to load requests.')
+      })
+
+      .addCase(addRequest.pending, (state, action) => {
+        state.error = null
+        const now = new Date().toISOString()
+        const tempId = `tmp-${action.meta.requestId}`
+        state.items.unshift(
+          normalizeRequest({
+            ...action.meta.arg,
+            id: tempId,
+            status: 'PENDING',
+            createdAt: now,
+            approvedAt: null,
+          }),
+        )
+      })
+      .addCase(addRequest.fulfilled, (state, action) => {
+        const created = normalizeRequest(action.payload)
+        const tempId = `tmp-${action.meta.requestId}`
+        const idx = state.items.findIndex((r) => String(r.id) === tempId)
+        if (idx >= 0) state.items[idx] = created
+        else state.items.unshift(created)
+      })
+      .addCase(addRequest.rejected, (state, action) => {
+        const tempId = `tmp-${action.meta.requestId}`
+        state.items = state.items.filter((r) => String(r.id) !== tempId)
+        state.error = String(action.payload || action.error?.message || 'Failed to create request.')
+      })
+
+      .addCase(cancelPendingRequest.pending, (state, action) => {
+        const id = String(action.meta.arg)
+        state.items = state.items.filter((r) => !(String(r.id) === id && r.status === 'PENDING'))
+      })
+      .addCase(cancelPendingRequest.rejected, (state, action) => {
+        state.error = String(action.payload || action.error?.message || 'Failed to cancel request.')
+      })
+
+      .addCase(approveRequest.pending, (state, action) => {
+        const id = String(action.meta.arg)
+        const found = state.items.find((r) => String(r.id) === id)
+        if (!found) return
+        found.status = 'APPROVED'
+        found.approvedAt = new Date().toISOString()
+      })
+      .addCase(approveRequest.fulfilled, (state, action) => {
+        const updated = normalizeRequest(action.payload)
+        const idx = state.items.findIndex((r) => String(r.id) === String(updated.id))
+        if (idx >= 0) state.items[idx] = { ...state.items[idx], ...updated }
+      })
+      .addCase(approveRequest.rejected, (state, action) => {
+        state.error = String(action.payload || action.error?.message || 'Failed to approve request.')
+      })
+
+      .addCase(rejectRequest.pending, (state, action) => {
+        const id = String(action.meta.arg)
+        const found = state.items.find((r) => String(r.id) === id)
+        if (!found) return
+        found.status = 'REJECTED'
+        found.approvedAt = null
+      })
+      .addCase(rejectRequest.fulfilled, (state, action) => {
+        const updated = normalizeRequest(action.payload)
+        const idx = state.items.findIndex((r) => String(r.id) === String(updated.id))
+        if (idx >= 0) state.items[idx] = { ...state.items[idx], ...updated }
+      })
+      .addCase(rejectRequest.rejected, (state, action) => {
+        state.error = String(action.payload || action.error?.message || 'Failed to reject request.')
+      })
   },
 })
 
-export const {
-  addRequest,
-  cancelPendingRequest,
-  approveRequest,
-  rejectRequest,
-  updateRequestContent,
-  clearAllRequests,
-} = requestsSlice.actions
+export const { updateRequestContent, clearAllRequests } = requestsSlice.actions
+
+export const { setRequestsFilter, setRequestsLimit, setRequestsPage } = requestsSlice.actions
 
 export const selectRequests = (state) => state.requests.items
+export const selectRequestsLoading = (state) => state.requests.loading
+export const selectRequestsError = (state) => state.requests.error
+export const selectRequestsCurrentPage = (state) => {
+  const n = Number(state?.requests?.currentPage)
+  return Number.isFinite(n) && n > 0 ? n : 1
+}
+export const selectRequestsTotalPages = (state) => {
+  const n = Number(state?.requests?.totalPages)
+  return Number.isFinite(n) && n > 0 ? n : 1
+}
+export const selectRequestsLimit = (state) => {
+  const n = Number(state?.requests?.limit)
+  return n === 5 ? 5 : 10
+}
+export const selectRequestsFilter = (state) => {
+  const s = String(state?.requests?.filter || 'PENDING').toUpperCase()
+  return s === 'PENDING' || s === 'APPROVED' || s === 'REJECTED' || s === 'ALL' ? s : 'PENDING'
+}
+export const selectRequestsTotalCount = (state) => state?.requests?.totalCount ?? null
 export const selectRequestsByUserId = (userId) =>
   createSelector([selectRequests], (items) => items.filter((r) => String(r.userId) === String(userId)))
 
@@ -138,12 +307,18 @@ export const selectPendingRequests = createSelector([selectRequests], (items) =>
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))),
 )
 
-export const selectApprovedPosts = createSelector([selectRequests], (items) =>
+const toTs = (value) => {
+  const ts = Date.parse(String(value || ''))
+  return Number.isFinite(ts) ? ts : 0
+}
+
+export const approvedRequestsSelector = createSelector([selectRequests], (items) =>
   items
     .filter((r) => r.status === 'APPROVED')
-    .sort((a, b) => String(b.approvedAt).localeCompare(String(a.approvedAt))),
+    .sort((a, b) => toTs(b.approvedAt) - toTs(a.approvedAt)),
 )
 
-export const approvedPostsSelector = selectApprovedPosts
+export const selectApprovedPosts = approvedRequestsSelector
+export const approvedPostsSelector = approvedRequestsSelector
 
 export default requestsSlice.reducer

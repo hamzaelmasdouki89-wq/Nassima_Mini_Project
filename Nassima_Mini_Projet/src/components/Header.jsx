@@ -1,6 +1,7 @@
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 
+import Avatar from './Avatar'
 import { logout, selectIsAuthenticated, selectUser } from '../redux/authSlice'
 
 export default function Header() {
@@ -27,13 +28,7 @@ export default function Header() {
 
           <div className="d-flex align-items-center gap-3">
             <div className="d-flex align-items-center gap-2">
-              <img
-                src={user?.avatar || user?.photo || 'https://via.placeholder.com/40'}
-                alt="avatar"
-                className="rounded-circle border"
-                width="36"
-                height="36"
-              />
+              <Avatar name={fullName} avatarUrl={user?.avatar || user?.photo} size="sm" />
               <div className="d-none d-md-block">
                 <div className="fw-semibold" style={{ lineHeight: 1.1 }}>
                   {fullName || 'Guest'}

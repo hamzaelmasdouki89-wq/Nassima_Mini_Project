@@ -415,11 +415,14 @@ export default function SettingsPage() {
 
                     <div className="d-flex align-items-center gap-3 mb-3">
                       <img
-                        src={avatarPreview || 'https://via.placeholder.com/64'}
+                        src={avatarPreview || 'https://ui-avatars.com/api/?name=User&background=random&color=fff'}
                         alt="avatar preview"
                         width="64"
                         height="64"
                         className="rounded-circle border"
+                        onError={(e) => {
+                          e.currentTarget.src = 'https://ui-avatars.com/api/?name=User&background=random&color=fff'
+                        }}
                       />
                       <div className="flex-grow-1">
                         <input

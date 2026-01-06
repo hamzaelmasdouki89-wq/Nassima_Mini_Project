@@ -1,30 +1,36 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 
-import { deleteStagiaire, fetchStagiaires } from '../services/api'
+import Avatar from '../components/Avatar'
+import Pagination from '../components/Pagination'
+import {
+  fetchUsers,
+  selectUsers,
+  selectUsersCurrentPage,
+  selectUsersError,
+  selectUsersLimit,
+  selectUsersLoading,
+  selectUsersTotalPages,
+  setUsersLimit,
+  setUsersPage,
+} from '../redux/usersSlice'
+import { deleteStagiaire } from '../services/api'
 
 export default function UsersPage() {
-  const [users, setUsers] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState('')
+  const dispatch = useDispatch()
 
-  const load = async () => {
-    setIsLoading(true)
-    setError('')
-    try {
-      const res = await fetchStagiaires()
-      setUsers(Array.isArray(res?.data) ? res.data : [])
-    } catch (e) {
-      setError('Failed to load users.')
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const users = useSelector(selectUsers)
+  const isLoading = useSelector(selectUsersLoading)
+  const error = useSelector(selectUsersError)
+  const currentPage = useSelector(selectUsersCurrentPage)
+  const totalPages = useSelector(selectUsersTotalPages)
+  const limit = useSelector(selectUsersLimit)
 
   useEffect(() => {
-    load()
-  }, [])
+    dispatch(fetchUsers({ page: currentPage, limit }))
+  }, [dispatch, currentPage, limit])
 
   const handleDelete = async (id) => {
     const ok = window.confirm('Delete this user?')
@@ -32,9 +38,13 @@ export default function UsersPage() {
 
     try {
       await deleteStagiaire(id)
-      await load()
+      if (users.length <= 1 && currentPage > 1) {
+        dispatch(setUsersPage(currentPage - 1))
+        return
+      }
+      dispatch(fetchUsers({ page: currentPage, limit }))
     } catch (e) {
-      setError('Delete failed.')
+      dispatch(fetchUsers({ page: currentPage, limit }))
     }
   }
 
@@ -48,10 +58,29 @@ export default function UsersPage() {
       >
         <div className="d-flex align-items-center justify-content-between mb-3">
           <h1 className="h4 mb-0">Users</h1>
-          <button type="button" className="btn btn-outline-secondary btn-sm" onClick={load}>
-            <i className="bi bi-arrow-clockwise me-1" />
-            Refresh
-          </button>
+          <div className="d-flex align-items-center gap-2">
+            <select
+              aria-label="Page size"
+              className="form-select form-select-sm"
+              value={limit}
+              onChange={(e) => dispatch(setUsersLimit(Number(e.target.value)))}
+              style={{ width: 120 }}
+              disabled={isLoading}
+            >
+              <option value={5}>5 / page</option>
+              <option value={10}>10 / page</option>
+            </select>
+
+            <button
+              type="button"
+              className="btn btn-outline-secondary btn-sm"
+              onClick={() => dispatch(fetchUsers({ page: currentPage, limit }))}
+              disabled={isLoading}
+            >
+              <i className="bi bi-arrow-clockwise me-1" />
+              Refresh
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -61,7 +90,11 @@ export default function UsersPage() {
         )}
 
         {isLoading ? (
-          <div className="text-secondary">Loading…</div>
+          <div className="d-flex justify-content-center py-5">
+            <div className="spinner-border" role="status" aria-label="Loading">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+          </div>
         ) : (
           <div className="table-responsive">
             <table className="table align-middle">
@@ -79,13 +112,7 @@ export default function UsersPage() {
                   <tr key={u.id}>
                     <td>
                       <div className="d-flex align-items-center gap-2">
-                        <img
-                          src={u.avatar || u.photo || 'https://via.placeholder.com/32'}
-                          alt="avatar"
-                          className="rounded-circle border"
-                          width="32"
-                          height="32"
-                        />
+                        <Avatar name={`${u?.prenom || ''} ${u?.nom || ''}`} avatarUrl={u?.avatar || u?.photo} size="sm" />
                         <div>
                           <div className="fw-semibold" style={{ lineHeight: 1.1 }}>
                             {u.prenom} {u.nom}
@@ -120,6 +147,13 @@ export default function UsersPage() {
                 ))}
               </tbody>
             </table>
+
+            <div className="d-flex flex-column align-items-center gap-2 py-2">
+              <div className="text-secondary" style={{ fontSize: 13 }}>
+                Page {currentPage} of {totalPages}
+              </div>
+              <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={(p) => dispatch(setUsersPage(p))} />
+            </div>
           </div>
         )}
       </motion.div>

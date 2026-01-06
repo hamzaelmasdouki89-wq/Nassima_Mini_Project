@@ -1,15 +1,19 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 
 import { selectUser } from '../redux/authSlice'
-import { addRequest, cancelPendingRequest, selectRequestsByUserId } from '../redux/requestsSlice'
+import { addRequest, cancelPendingRequest, fetchRequests, selectRequestsByUserId } from '../redux/requestsSlice'
 
 export default function MyRequestsPage() {
   const dispatch = useDispatch()
   const user = useSelector(selectUser)
   const myRequestsSelector = useMemo(() => selectRequestsByUserId(user?.id), [user?.id])
   const myRequests = useSelector(myRequestsSelector)
+
+  useEffect(() => {
+    dispatch(fetchRequests())
+  }, [dispatch])
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')

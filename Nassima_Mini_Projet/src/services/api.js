@@ -14,11 +14,16 @@ export const settingsApi = axios.create({
   },
 })
 
-export const fetchStagiaires = () => api.get('/users')
+export const fetchStagiaires = (params = {}) => api.get('/users', { params })
 export const createStagiaire = (payload) => api.post('/users', payload)
 export const fetchStagiaireById = (id) => api.get(`/users/${id}`)
 export const updateStagiaire = (id, payload) => api.put(`/users/${id}`, payload)
 export const deleteStagiaire = (id) => api.delete(`/users/${id}`)
+
+export const fetchDemandes = (params = {}) => api.get('/demandes', { params })
+export const createDemande = (payload) => api.post('/demandes', payload)
+export const updateDemande = (id, payload) => api.put(`/demandes/${id}`, payload)
+export const deleteDemande = (id) => api.delete(`/demandes/${id}`)
 
 export const fetchStagiaireSettingsById = (id) => settingsApi.get(`/Stagiaire/${id}`)
 export const updateStagiaireSettings = (id, payload) => settingsApi.put(`/Stagiaire/${id}`, payload)

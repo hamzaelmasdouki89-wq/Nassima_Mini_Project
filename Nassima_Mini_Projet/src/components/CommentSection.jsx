@@ -4,12 +4,15 @@ import { useDispatch, useSelector } from 'react-redux'
 
 import { selectIsAuthenticated, selectUser } from '../redux/authSlice'
 import { addComment, makeSelectCommentsByPostId } from '../redux/commentsSlice'
+import Avatar from './Avatar'
 import CommentItem from './CommentItem'
 
 export default function CommentSection({ postId, isOpen }) {
   const dispatch = useDispatch()
   const isAuthenticated = useSelector(selectIsAuthenticated)
   const user = useSelector(selectUser)
+
+  const fullName = `${user?.prenom || ''} ${user?.nom || ''}`.trim()
 
   const commentsSelector = useMemo(() => makeSelectCommentsByPostId(postId), [postId])
   const comments = useSelector(commentsSelector)
@@ -54,13 +57,7 @@ export default function CommentSection({ postId, isOpen }) {
             {isAuthenticated ? (
               <form onSubmit={handleSubmit}>
                 <div className="d-flex gap-2">
-                  <img
-                    src={user?.avatar || user?.photo || 'https://via.placeholder.com/32'}
-                    alt="avatar"
-                    className="rounded-circle border"
-                    width="32"
-                    height="32"
-                  />
+                  <Avatar name={fullName} avatarUrl={user?.avatar || user?.photo} size="sm" />
                   <div className="flex-grow-1">
                     <textarea
                       className="form-control"

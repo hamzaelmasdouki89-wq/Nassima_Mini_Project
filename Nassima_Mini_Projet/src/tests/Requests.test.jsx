@@ -1,11 +1,26 @@
 import { fireEvent, screen, waitForElementToBeRemoved } from '@testing-library/react'
+import { vi } from 'vitest'
 
 import MyRequestsPage from '../pages/MyRequestsPage'
 import RequestsAdminPage from '../pages/RequestsAdminPage'
+import { fetchDemandes } from '../services/api'
 import { renderWithProviders } from './testUtils'
+
+vi.mock('../services/api', async () => {
+  const actual = await vi.importActual('../services/api')
+  return {
+    ...actual,
+    fetchDemandes: vi.fn(async () => ({ data: [] })),
+    createDemande: vi.fn(async (payload) => ({ data: { ...payload, id: 'r-new' } })),
+    updateDemande: vi.fn(async (id, payload) => ({ data: { ...payload, id } })),
+    deleteDemande: vi.fn(async () => ({ data: {} })),
+  }
+})
 
 describe('Request system', () => {
   test('visitor can create and cancel a pending request', async () => {
+    fetchDemandes.mockResolvedValueOnce({ data: [] })
+
     renderWithProviders(<MyRequestsPage />, {
       preloadedState: {
         auth: {
@@ -28,7 +43,23 @@ describe('Request system', () => {
     await waitForElementToBeRemoved(() => screen.queryByText('Need help'))
   })
 
-  test('admin can approve a pending request', () => {
+  test('admin can approve a pending request', async () => {
+    const pendingRequest = {
+      id: 'r1',
+      title: 'Original',
+      description: 'Desc',
+      userId: 'u1',
+      nom: 'User',
+      prenom: 'One',
+      pseudo: 'u1',
+      avatar: '',
+      status: 'PENDING',
+      createdAt: new Date('2020-01-01').toISOString(),
+      approvedAt: null,
+    }
+
+    fetchDemandes.mockResolvedValueOnce({ data: [pendingRequest] })
+
     renderWithProviders(<RequestsAdminPage />, {
       preloadedState: {
         auth: {
@@ -37,26 +68,15 @@ describe('Request system', () => {
         },
         requests: {
           items: [
-            {
-              id: 'r1',
-              title: 'Original',
-              description: 'Desc',
-              userId: 'u1',
-              nom: 'User',
-              prenom: 'One',
-              pseudo: 'u1',
-              avatar: '',
-              status: 'PENDING',
-              createdAt: new Date('2020-01-01').toISOString(),
-              approvedAt: null,
-            },
+            pendingRequest,
           ],
         },
       },
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /approve/i }))
+    const approveBtn = await screen.findByRole('button', { name: /approve/i })
+    fireEvent.click(approveBtn)
 
     expect(screen.getByText(/No pending requests/i)).toBeInTheDocument()
   })
-})
+ })

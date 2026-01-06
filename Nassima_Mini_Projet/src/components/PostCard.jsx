@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux'
 
 import { selectIsAuthenticated, selectUser } from '../redux/authSlice'
 import { makeSelectCommentsCountByPostId } from '../redux/commentsSlice'
+import Avatar from './Avatar'
 import LikeButton from './LikeButton'
 import CommentSection from './CommentSection'
 import ShareButton from './ShareButton'
@@ -31,13 +32,7 @@ export default function PostCard({ post }) {
   return (
     <motion.div whileHover={{ y: -1 }} transition={{ duration: 0.12 }} className="px-card">
       <div className="d-flex gap-3">
-        <img
-          src={post?.avatar || 'https://via.placeholder.com/48'}
-          alt="avatar"
-          className="rounded-circle border"
-          width="48"
-          height="48"
-        />
+        <Avatar name={authorName} avatarUrl={post?.avatar} size="md" />
 
         <div className="flex-grow-1">
           <div className="d-flex align-items-center justify-content-between gap-2">

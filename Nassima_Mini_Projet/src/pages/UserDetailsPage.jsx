@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 
+import Avatar from '../components/Avatar'
 import { fetchStagiaireById } from '../services/api'
 
 export default function UserDetailsPage() {
@@ -53,13 +54,7 @@ export default function UserDetailsPage() {
         ) : user ? (
           <div className="row g-3">
             <div className="col-12 col-md-auto">
-              <img
-                src={user.avatar || user.photo || 'https://via.placeholder.com/96'}
-                alt="avatar"
-                className="rounded-circle border"
-                width="96"
-                height="96"
-              />
+              <Avatar name={`${user?.prenom || ''} ${user?.nom || ''}`} avatarUrl={user?.avatar || user?.photo} size="lg" />
             </div>
             <div className="col">
               <div className="d-flex flex-wrap align-items-center gap-2">

@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import Avatar from './Avatar'
 
 export default function CommentItem({ comment }) {
   const fullName = `${comment?.prenom || ''} ${comment?.nom || ''}`.trim()
@@ -12,13 +13,7 @@ export default function CommentItem({ comment }) {
       transition={{ duration: 0.18 }}
       className="d-flex gap-2"
     >
-      <img
-        src={comment?.avatar || 'https://via.placeholder.com/32'}
-        alt="avatar"
-        className="rounded-circle border"
-        width="32"
-        height="32"
-      />
+      <Avatar name={fullName} avatarUrl={comment?.avatar} size="sm" />
       <div className="flex-grow-1">
         <div className="d-flex align-items-center justify-content-between">
           <div className="fw-semibold" style={{ fontSize: 14 }}>
