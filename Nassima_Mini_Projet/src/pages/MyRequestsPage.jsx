@@ -3,17 +3,18 @@ import { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 
 import { selectUser } from '../redux/authSlice'
-import { addRequest, cancelPendingRequest, fetchRequests, selectRequestsByUserId } from '../redux/requestsSlice'
+import { addRequest, cancelPendingRequest, fetchRequests, selectRequestsByUserId, selectRequestsFetched } from '../redux/requestsSlice'
 
 export default function MyRequestsPage() {
   const dispatch = useDispatch()
   const user = useSelector(selectUser)
+  const fetched = useSelector(selectRequestsFetched)
   const myRequestsSelector = useMemo(() => selectRequestsByUserId(user?.id), [user?.id])
   const myRequests = useSelector(myRequestsSelector)
 
   useEffect(() => {
-    dispatch(fetchRequests())
-  }, [dispatch])
+    if (!fetched) dispatch(fetchRequests())
+  }, [dispatch, fetched])
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')

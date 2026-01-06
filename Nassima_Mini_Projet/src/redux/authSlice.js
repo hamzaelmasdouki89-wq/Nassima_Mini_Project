@@ -1,5 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit'
 
+import { clearAuthUser, loadAuthUser, saveAuthUser } from '../utils/authStorage'
+
 const emptyUser = {
   nom: '',
   prenom: '',
@@ -7,6 +9,7 @@ const emptyUser = {
   admin: false,
   pseudo: '',
   couleur: '#ffffff',
+  language: 'en',
   Devise: '',
   Pays: '',
   avatar: '',
@@ -15,9 +18,11 @@ const emptyUser = {
   id: '',
 }
 
+const persistedUser = loadAuthUser()
+
 const initialState = {
-  user: emptyUser,
-  isAuthenticated: false,
+  user: persistedUser ? { ...emptyUser, ...persistedUser } : emptyUser,
+  isAuthenticated: Boolean(persistedUser?.id),
 }
 
 const authSlice = createSlice({
@@ -28,22 +33,30 @@ const authSlice = createSlice({
       const { MotDePasse: _pwd, ...safeUser } = action.payload || {}
       state.user = { ...emptyUser, ...safeUser }
       state.isAuthenticated = true
+
+      saveAuthUser(state.user)
     },
     logout: (state) => {
       state.user = emptyUser
       state.isAuthenticated = false
+
+      clearAuthUser()
     },
     updateUserFields: (state, action) => {
       state.user = {
         ...state.user,
         ...(action.payload || {}),
       }
+
+      if (state.isAuthenticated) saveAuthUser(state.user)
     },
     updatePreferredColor: (state, action) => {
       state.user = {
         ...state.user,
         couleur: action.payload,
       }
+
+      if (state.isAuthenticated) saveAuthUser(state.user)
     },
   },
 })

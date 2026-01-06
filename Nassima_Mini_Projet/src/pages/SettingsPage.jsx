@@ -5,7 +5,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useT } from '../i18n/i18n'
 import { selectUser, updateUserFields } from '../redux/authSlice'
 import { selectLanguage, setLanguage } from '../redux/settingsSlice'
-import { fetchStagiaireSettingsById, updateStagiaireSettings } from '../services/api'
+import { fetchStagiaireById, fetchStagiaireSettingsById, updateStagiaire, updateStagiaireSettings } from '../services/api'
 import { passwordMatches, hashPassword, validateNewPassword } from '../utils/passwordUtils'
 
 const fileToDataUrl = (file) =>
@@ -63,6 +63,16 @@ export default function SettingsPage() {
     return !profileStatus.loading && profile.nom.trim() && profile.prenom.trim() && profile.email.trim()
   }, [profileStatus.loading, profile])
 
+  const updateUserOnApi = async (patch) => {
+    const current = await fetchStagiaireById(user.id)
+    const merged = {
+      ...(current?.data || {}),
+      ...patch,
+    }
+    await updateStagiaire(user.id, merged)
+    return merged
+  }
+
   const saveProfile = async (e) => {
     e.preventDefault()
     setProfileStatus({ loading: true, error: '', success: '' })
@@ -76,10 +86,11 @@ export default function SettingsPage() {
         Pays: String(profile.Pays || '').trim(),
       }
 
-      await updateStagiaireSettings(user.id, payload)
+      await updateUserOnApi(payload)
       dispatch(updateUserFields(payload))
       setProfileStatus({ loading: false, error: '', success: 'Profile updated.' })
     } catch (err) {
+      console.error(err?.response?.data || err?.message || err)
       setProfileStatus({ loading: false, error: 'Failed to update profile.', success: '' })
     }
   }
@@ -115,11 +126,13 @@ export default function SettingsPage() {
       }
 
       const hashed = await hashPassword(pwdForm.next)
-      await updateStagiaireSettings(user.id, { MotDePasse: hashed })
+      const merged = { ...(stored || {}), MotDePasse: hashed }
+      await updateStagiaireSettings(user.id, merged)
 
       setPwdForm({ current: '', next: '', confirm: '' })
       setPwdStatus({ loading: false, error: '', success: 'Password updated successfully.' })
     } catch (err) {
+      console.error(err?.response?.data || err?.message || err)
       setPwdStatus({ loading: false, error: 'Failed to update password.', success: '' })
     }
   }
@@ -155,10 +168,11 @@ export default function SettingsPage() {
 
     setAvatarStatus({ loading: true, error: '', success: '' })
     try {
-      await updateStagiaireSettings(user.id, { avatar: avatarPreview })
+      await updateUserOnApi({ avatar: avatarPreview })
       dispatch(updateUserFields({ avatar: avatarPreview }))
       setAvatarStatus({ loading: false, error: '', success: 'Profile picture updated.' })
     } catch (err) {
+      console.error(err?.response?.data || err?.message || err)
       setAvatarStatus({ loading: false, error: 'Failed to upload avatar.', success: '' })
     }
   }
@@ -168,10 +182,11 @@ export default function SettingsPage() {
     setLangStatus({ loading: true, error: '', success: '' })
 
     try {
-      await updateStagiaireSettings(user.id, { language: nextLang })
+      await updateUserOnApi({ language: nextLang })
       dispatch(updateUserFields({ language: nextLang }))
       setLangStatus({ loading: false, error: '', success: 'Language updated.' })
     } catch (err) {
+      console.error(err?.response?.data || err?.message || err)
       setLangStatus({ loading: false, error: 'Failed to persist language.', success: '' })
     }
   }

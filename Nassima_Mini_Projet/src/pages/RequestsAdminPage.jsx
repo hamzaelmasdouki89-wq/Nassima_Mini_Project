@@ -8,12 +8,12 @@ import {
   approveRequest,
   fetchRequests,
   rejectRequest,
-  selectRequests,
+  selectPagedRequests,
   selectRequestsCurrentPage,
-  selectRequestsError,
+  selectRequestsPageError,
   selectRequestsFilter,
   selectRequestsLimit,
-  selectRequestsLoading,
+  selectRequestsPageLoading,
   selectRequestsTotalPages,
   selectRequestsTotalCount,
   setRequestsFilter,
@@ -24,9 +24,9 @@ import {
 export default function RequestsAdminPage() {
   const dispatch = useDispatch()
 
-  const items = useSelector(selectRequests)
-  const loading = useSelector(selectRequestsLoading)
-  const error = useSelector(selectRequestsError)
+  const items = useSelector(selectPagedRequests)
+  const loading = useSelector(selectRequestsPageLoading)
+  const error = useSelector(selectRequestsPageError)
   const currentPage = useSelector(selectRequestsCurrentPage)
   const totalPages = useSelector(selectRequestsTotalPages)
   const limit = useSelector(selectRequestsLimit)

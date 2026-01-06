@@ -2,31 +2,30 @@ import { createAsyncThunk, createSelector, createSlice, nanoid } from '@reduxjs/
 import { createDemande, deleteDemande, fetchDemandes, updateDemande } from '../services/api'
 
 const normalizeStatus = (value) => {
-  const s = String(value || '').toUpperCase()
+  const raw = String(value || '').trim()
+  const s = raw.toUpperCase()
   if (s === 'PENDING' || s === 'APPROVED' || s === 'REJECTED') return s
 
-  if (s === 'PENDING') return 'PENDING'
-  if (s === 'APPROVED') return 'APPROVED'
-  if (s === 'REJECTED') return 'REJECTED'
-
-  if (String(value || '').toLowerCase() === 'pending') return 'PENDING'
-  if (String(value || '').toLowerCase() === 'approved') return 'APPROVED'
-  if (String(value || '').toLowerCase() === 'rejected') return 'REJECTED'
+  const lower = raw.toLowerCase()
+  if (lower === 'pending' || lower === 'en attente') return 'PENDING'
+  if (lower === 'approved' || lower === 'approuvée' || lower === 'approuvee') return 'APPROVED'
+  if (lower === 'rejected' || lower === 'rejetée' || lower === 'rejetee') return 'REJECTED'
 
   return 'PENDING'
 }
 
 const normalizeRequest = (r) => {
   const createdAt = r?.createdAt || r?.updatedAt || new Date().toISOString()
-  const status = normalizeStatus(r?.status)
+  const rawStatus = r?.status ?? r?.statut ?? r?.statu
+  const status = normalizeStatus(rawStatus)
   return {
     id: String(r?.id || nanoid()),
     userId: String(r?.userId || ''),
     nom: String(r?.nom || ''),
     prenom: String(r?.prenom || ''),
-    pseudo: String(r?.pseudo || ''),
+    pseudo: String(r?.pseudo || r?.username || ''),
     avatar: String(r?.avatar || r?.photo || ''),
-    title: String(r?.title || ''),
+    title: String(r?.title || r?.titre || ''),
     description: String(r?.description || ''),
     status,
     createdAt,
@@ -42,16 +41,16 @@ const getErrorMessage = (err) => {
 }
 
 export const fetchRequests = createAsyncThunk('requests/fetchRequests', async (_, { rejectWithValue }) => {
+  const args = _ || {}
+
+  const page = Number(args?.page || 0)
+  const limit = Number(args?.limit || 0)
+  const statusRaw = String(args?.status || '').toUpperCase()
+
+  const isPaginated = page > 0 && limit > 0
+  const status = statusRaw === 'PENDING' || statusRaw === 'APPROVED' || statusRaw === 'REJECTED' || statusRaw === 'ALL' ? statusRaw : ''
+
   try {
-    const args = _ || {}
-
-    const page = Number(args?.page || 0)
-    const limit = Number(args?.limit || 0)
-    const statusRaw = String(args?.status || '').toUpperCase()
-
-    const isPaginated = page > 0 && limit > 0
-    const status = statusRaw === 'PENDING' || statusRaw === 'APPROVED' || statusRaw === 'REJECTED' || statusRaw === 'ALL' ? statusRaw : ''
-
     const params = {}
     if (page > 0) params.page = page
     if (limit > 0) params.limit = limit
@@ -68,6 +67,7 @@ export const fetchRequests = createAsyncThunk('requests/fetchRequests', async (_
       return {
         items,
         totalCount: Number.isFinite(totalCount) ? totalCount : items.length,
+        isPaginated: false,
       }
     }
 
@@ -80,11 +80,34 @@ export const fetchRequests = createAsyncThunk('requests/fetchRequests', async (_
       limit,
       filter: status || 'ALL',
       totalCount: Number.isFinite(totalCount) ? totalCount : null,
+      isPaginated: true,
     }
   } catch (err) {
+    const code = err?.response?.status
+    if (code === 404 && status && status !== 'ALL') {
+      if (!isPaginated) {
+        return { items: [], totalCount: 0, isPaginated: false }
+      }
+      return {
+        items: [],
+        currentPage: page || 1,
+        totalPages: 1,
+        limit: limit || 10,
+        filter: status,
+        totalCount: 0,
+        isPaginated: true,
+      }
+    }
+
     return rejectWithValue(getErrorMessage(err))
   }
 })
+
+const applyUpdateToList = (list, predicate, updater) => {
+  const idx = Array.isArray(list) ? list.findIndex(predicate) : -1
+  if (idx < 0) return
+  list[idx] = updater(list[idx])
+}
 
 export const addRequest = createAsyncThunk('requests/addRequest', async (payload, { rejectWithValue }) => {
   try {
@@ -145,6 +168,7 @@ export const rejectRequest = createAsyncThunk('requests/rejectRequest', async (i
 
 const initialState = {
   items: [],
+  pagedItems: [],
   currentPage: 1,
   totalPages: 1,
   limit: 10,
@@ -152,6 +176,9 @@ const initialState = {
   totalCount: null,
   loading: 'idle',
   error: null,
+  pageLoading: 'idle',
+  pageError: null,
+  fetched: false,
 }
 
 const requestsSlice = createSlice({
@@ -168,6 +195,12 @@ const requestsSlice = createSlice({
     },
     clearAllRequests: (state) => {
       state.items = []
+      state.pagedItems = []
+      state.loading = 'idle'
+      state.error = null
+      state.pageLoading = 'idle'
+      state.pageError = null
+      state.fetched = false
     },
     setRequestsPage: (state, action) => {
       const n = Number(action.payload)
@@ -186,21 +219,47 @@ const requestsSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      .addCase(fetchRequests.pending, (state) => {
+      .addCase(fetchRequests.pending, (state, action) => {
+        const args = action?.meta?.arg || {}
+        const page = Number(args?.page || 0)
+        const limit = Number(args?.limit || 0)
+        const isPaginated = page > 0 && limit > 0
+        if (isPaginated) {
+          state.pageLoading = 'pending'
+          state.pageError = null
+          return
+        }
         state.loading = 'pending'
         state.error = null
       })
       .addCase(fetchRequests.fulfilled, (state, action) => {
+        const isPaginated = Boolean(action.payload?.isPaginated)
+        if (isPaginated) {
+          state.pageLoading = 'succeeded'
+          state.pagedItems = Array.isArray(action.payload?.items) ? action.payload.items : []
+
+          if (action.payload?.currentPage) state.currentPage = Number(action.payload.currentPage)
+          if (action.payload?.totalPages) state.totalPages = Number(action.payload.totalPages)
+          if (action.payload?.limit) state.limit = Number(action.payload.limit)
+          if (action.payload?.filter) state.filter = String(action.payload.filter)
+          if (action.payload?.totalCount !== undefined) state.totalCount = action.payload.totalCount
+          return
+        }
+
         state.loading = 'succeeded'
         state.items = Array.isArray(action.payload?.items) ? action.payload.items : []
-
-        if (action.payload?.currentPage) state.currentPage = Number(action.payload.currentPage)
-        if (action.payload?.totalPages) state.totalPages = Number(action.payload.totalPages)
-        if (action.payload?.limit) state.limit = Number(action.payload.limit)
-        if (action.payload?.filter) state.filter = String(action.payload.filter)
-        if (action.payload?.totalCount !== undefined) state.totalCount = action.payload.totalCount
+        state.fetched = true
       })
       .addCase(fetchRequests.rejected, (state, action) => {
+        const args = action?.meta?.arg || {}
+        const page = Number(args?.page || 0)
+        const limit = Number(args?.limit || 0)
+        const isPaginated = page > 0 && limit > 0
+        if (isPaginated) {
+          state.pageLoading = 'failed'
+          state.pageError = String(action.payload || action.error?.message || 'Failed to load requests.')
+          return
+        }
         state.loading = 'failed'
         state.error = String(action.payload || action.error?.message || 'Failed to load requests.')
       })
@@ -235,6 +294,7 @@ const requestsSlice = createSlice({
       .addCase(cancelPendingRequest.pending, (state, action) => {
         const id = String(action.meta.arg)
         state.items = state.items.filter((r) => !(String(r.id) === id && r.status === 'PENDING'))
+        state.pagedItems = state.pagedItems.filter((r) => !(String(r.id) === id && r.status === 'PENDING'))
       })
       .addCase(cancelPendingRequest.rejected, (state, action) => {
         state.error = String(action.payload || action.error?.message || 'Failed to cancel request.')
@@ -242,15 +302,15 @@ const requestsSlice = createSlice({
 
       .addCase(approveRequest.pending, (state, action) => {
         const id = String(action.meta.arg)
-        const found = state.items.find((r) => String(r.id) === id)
-        if (!found) return
-        found.status = 'APPROVED'
-        found.approvedAt = new Date().toISOString()
+        const apply = (r) => ({ ...r, status: 'APPROVED', approvedAt: new Date().toISOString() })
+        applyUpdateToList(state.items, (r) => String(r.id) === id, apply)
+        applyUpdateToList(state.pagedItems, (r) => String(r.id) === id, apply)
       })
       .addCase(approveRequest.fulfilled, (state, action) => {
         const updated = normalizeRequest(action.payload)
-        const idx = state.items.findIndex((r) => String(r.id) === String(updated.id))
-        if (idx >= 0) state.items[idx] = { ...state.items[idx], ...updated }
+        const apply = (r) => ({ ...r, ...updated })
+        applyUpdateToList(state.items, (r) => String(r.id) === String(updated.id), apply)
+        applyUpdateToList(state.pagedItems, (r) => String(r.id) === String(updated.id), apply)
       })
       .addCase(approveRequest.rejected, (state, action) => {
         state.error = String(action.payload || action.error?.message || 'Failed to approve request.')
@@ -258,15 +318,15 @@ const requestsSlice = createSlice({
 
       .addCase(rejectRequest.pending, (state, action) => {
         const id = String(action.meta.arg)
-        const found = state.items.find((r) => String(r.id) === id)
-        if (!found) return
-        found.status = 'REJECTED'
-        found.approvedAt = null
+        const apply = (r) => ({ ...r, status: 'REJECTED', approvedAt: null })
+        applyUpdateToList(state.items, (r) => String(r.id) === id, apply)
+        applyUpdateToList(state.pagedItems, (r) => String(r.id) === id, apply)
       })
       .addCase(rejectRequest.fulfilled, (state, action) => {
         const updated = normalizeRequest(action.payload)
-        const idx = state.items.findIndex((r) => String(r.id) === String(updated.id))
-        if (idx >= 0) state.items[idx] = { ...state.items[idx], ...updated }
+        const apply = (r) => ({ ...r, ...updated })
+        applyUpdateToList(state.items, (r) => String(r.id) === String(updated.id), apply)
+        applyUpdateToList(state.pagedItems, (r) => String(r.id) === String(updated.id), apply)
       })
       .addCase(rejectRequest.rejected, (state, action) => {
         state.error = String(action.payload || action.error?.message || 'Failed to reject request.')
@@ -281,6 +341,11 @@ export const { setRequestsFilter, setRequestsLimit, setRequestsPage } = requests
 export const selectRequests = (state) => state.requests.items
 export const selectRequestsLoading = (state) => state.requests.loading
 export const selectRequestsError = (state) => state.requests.error
+export const selectRequestsFetched = (state) => Boolean(state?.requests?.fetched)
+
+export const selectPagedRequests = (state) => state?.requests?.pagedItems || []
+export const selectRequestsPageLoading = (state) => state?.requests?.pageLoading || 'idle'
+export const selectRequestsPageError = (state) => state?.requests?.pageError || null
 export const selectRequestsCurrentPage = (state) => {
   const n = Number(state?.requests?.currentPage)
   return Number.isFinite(n) && n > 0 ? n : 1

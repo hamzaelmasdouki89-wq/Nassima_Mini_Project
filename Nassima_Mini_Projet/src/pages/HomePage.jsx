@@ -3,18 +3,25 @@ import { useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 
 import PostCard from '../components/PostCard'
-import { approvedRequestsSelector, fetchRequests, selectRequestsError, selectRequestsLoading } from '../redux/requestsSlice'
+import {
+  approvedRequestsSelector,
+  fetchRequests,
+  selectRequestsError,
+  selectRequestsFetched,
+  selectRequestsLoading,
+} from '../redux/requestsSlice'
 
 export default function HomePage() {
   const dispatch = useDispatch()
 
   const loading = useSelector(selectRequestsLoading)
   const error = useSelector(selectRequestsError)
+  const fetched = useSelector(selectRequestsFetched)
   const posts = useSelector(approvedRequestsSelector)
 
   useEffect(() => {
-    dispatch(fetchRequests())
-  }, [dispatch])
+    if (!fetched) dispatch(fetchRequests())
+  }, [dispatch, fetched])
 
   return (
     <div className="container py-4" style={{ maxWidth: 600 }}>

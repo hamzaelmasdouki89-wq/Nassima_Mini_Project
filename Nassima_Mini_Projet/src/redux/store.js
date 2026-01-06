@@ -8,6 +8,10 @@ import requestsReducer from './requestsSlice'
 import settingsReducer from './settingsSlice'
 import usersReducer from './usersSlice'
 
+import { setComments } from './commentsSlice'
+import { setLikes } from './likesSlice'
+import { loadComments, loadLikes } from '../utils/socialStorage'
+
 export const store = configureStore({
   reducer: {
     auth: authReducer,
@@ -19,3 +23,6 @@ export const store = configureStore({
     dashboard: dashboardReducer,
   },
 })
+
+store.dispatch(setLikes(loadLikes()))
+store.dispatch(setComments(loadComments()))

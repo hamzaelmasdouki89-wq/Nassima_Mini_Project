@@ -8,6 +8,8 @@ vi.mock('../services/api', async () => {
   const actual = await vi.importActual('../services/api')
   return {
     ...actual,
+    fetchStagiaireById: vi.fn(async () => ({ data: {} })),
+    updateStagiaire: vi.fn(async () => ({ data: {} })),
     fetchStagiaireSettingsById: vi.fn(async () => ({ data: { MotDePasse: 'hash' } })),
     updateStagiaireSettings: vi.fn(async () => ({ data: {} })),
   }
