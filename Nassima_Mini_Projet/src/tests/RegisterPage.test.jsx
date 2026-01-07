@@ -3,11 +3,31 @@ import { fireEvent, screen } from '@testing-library/react'
 import RegisterPage from '../pages/RegisterPage'
 import { renderWithProviders } from './testUtils'
 
-vi.mock('../services/api', () => ({
-  createStagiaire: vi.fn(() => Promise.resolve({ data: {} })),
-}))
+vi.mock('../services/api', async () => {
+  const actual = await vi.importActual('../services/api')
+  return {
+    ...actual,
+    createStagiaireAccount: vi.fn(() => Promise.resolve({ data: {} })),
+  }
+})
 
 describe('RegisterPage', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          json: () => Promise.resolve([]),
+        })
+      )
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.clearAllMocks()
+  })
+
   test('shows validation errors when submitting empty form', () => {
     renderWithProviders(<RegisterPage />, {
       preloadedState: {

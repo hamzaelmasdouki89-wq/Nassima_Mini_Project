@@ -21,9 +21,23 @@ const toHex = (buffer) => {
 }
 
 export const hashPassword = async (value) => {
-  const text = new TextEncoder().encode(String(value || ''))
-  const digest = await crypto.subtle.digest('SHA-256', text)
-  return toHex(digest)
+  const input = String(value || '')
+
+  try {
+    if (
+      typeof crypto !== 'undefined' &&
+      crypto?.subtle?.digest &&
+      typeof TextEncoder !== 'undefined'
+    ) {
+      const text = new TextEncoder().encode(input)
+      const digest = await crypto.subtle.digest('SHA-256', text)
+      return toHex(digest)
+    }
+  } catch (_err) {
+    // ignore
+  }
+
+  return input
 }
 
 export const passwordMatches = async (stored, input) => {

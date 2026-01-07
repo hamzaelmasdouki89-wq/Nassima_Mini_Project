@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { motion } from 'framer-motion'
 
-import { fetchStagiaires } from '../services/api'
+import { fetchStagiaireAccounts, fetchStagiaires } from '../services/api'
 import { loginSuccess, selectIsAuthenticated } from '../redux/authSlice'
 import { setLanguage } from '../redux/settingsSlice'
 import { passwordMatches } from '../utils/passwordUtils'
@@ -62,8 +62,15 @@ export default function LoginPage() {
     setErrors([])
 
     try {
-      const res = await fetchStagiaires()
-      const list = Array.isArray(res?.data) ? res.data : []
+      let list = []
+      try {
+        const res = await fetchStagiaireAccounts()
+        list = Array.isArray(res?.data) ? res.data : []
+      } catch (err) {
+        console.error({ source: 'fetchStagiaireAccounts', status: err?.response?.status, data: err?.response?.data, message: err?.message, err })
+        const res = await fetchStagiaires()
+        list = Array.isArray(res?.data) ? res.data : []
+      }
 
       const found = list.find((u) => String(u?.pseudo || '').toLowerCase() === trimmedPseudo.toLowerCase())
       if (!found) {
@@ -85,7 +92,17 @@ export default function LoginPage() {
       }
       navigate('/', { replace: true })
     } catch (err) {
-      setErrors(['Login failed due to a network error. Please try again.'])
+      const status = err?.response?.status
+      const data = err?.response?.data
+      const msg =
+        (typeof data === 'string' && data) ||
+        data?.message ||
+        data?.error ||
+        err?.message ||
+        'Unknown error'
+
+      console.error({ status, data, message: err?.message, err })
+      setErrors([status ? `Login failed (HTTP ${status}).` : 'Login failed due to a network error. Please try again.', String(msg)])
       setAttempts((a) => a + 1)
     } finally {
       setIsSubmitting(false)
